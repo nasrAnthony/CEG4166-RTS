@@ -191,9 +191,6 @@ class ServoWrite:
         calculated_pw = self.calc_pw(degree=degree)
         self.set_pw(pulse_width=calculated_pw)
 
-
-pi = pigpio.pi()
-           
 def run_path_1(mc, left_servo, right_servo): 
     print("Executing Path 1")
     #running path 1
@@ -237,23 +234,40 @@ def run_path_2(mc, left_servo, right_servo):
     mc.stopRobot(left_servo, right_servo, 1)
     mc.moveForward(left_servo, right_servo, 1)
     mc.stopRobot(left_servo, right_servo, 1)
-    
-    
-    
-def keyboard_control_test(): 
-    while True: 
-        char = getch()
-        if char == "w":
-            mc.moveForward(left_servo, right_servo, 1)
-        if char == "a": 
-            mc.turn_left(left_servo, right_servo, 0.1)
-        if char == "d":  
-            mc.turn_right(left_servo, right_servo, 0.1)
-        if char == "s":
-            mc.stopRobot(left_servo, right_servo, 0.2)
-        if char == "q":
-            break
-                
+
+
+class movement_controller: 
+    def __init__(self, left_servo, right_servo): 
+        self.left_servo = left_servo    
+        self.right_servo = right_servo
+
+    #Movement functionality
+    def move_forward(self, timer): 
+        self.right_servo.set_position(90)
+        self.left_servo.set_position(-90)
+        time.sleep(timer)
+            
+    def move_backward(self, timer): 
+        self.right_servo.set_position(-90)
+        self.left_servo.set_position(90)
+        time.sleep(timer)
+        
+    def stop_robot(left_servo, right_servo, timer): 
+        right_servo.set_position(0)
+        left_servo.set_position(0)
+        time.sleep(timer)
+        
+    def turn_left(self, timer): 
+        self.right_servo.set_position(90)
+        self.left_servo.set_position(70)
+        time.sleep(timer)
+            
+    def turn_right(self, timer): 
+        self.right_servo.set_position(-90)
+        self.left_servo.set_position(-70)
+        time.sleep(timer)
+
+#SONAR code
 samples = 5
 
 #Creation of sonar sensor
@@ -267,7 +281,6 @@ def Sonar(sensor, samples, obstacle_flag):
         e = time.time()
         #print("Distance:", distance, "cm")
         #print("Used time:", (e - s), "seconds")
-        #distance = int(distance)
         if distance < 10:
             print("Object Detected at Distance:", distance, "cm")
             obstacle_flag[0] = True
@@ -275,7 +288,8 @@ def Sonar(sensor, samples, obstacle_flag):
             obstacle_flag[0] = False
         print(distance, obstacle_flag)
         time.sleep(0.01)
-        
+#end of sonar code
+
 key_states = {
     "w": False,
     "a": False,
@@ -288,69 +302,52 @@ def on_press(key):
         if key.char in key_states:
             key_states[key.char] = True
     except AttributeError:
-        pass  # Ignore special keys
+        pass  #Ignore special keys
 
 def on_release(key):
     try:
         if key.char in key_states:
             key_states[key.char] = False
         if key.char == "q":
-            return False  # Stop listener
+            return False  #Stop listener
     except AttributeError:
         pass
 
 def main():
+    pi = pigpio.pi()
     left_servo = ServoWrite(pi=pi, gpio=23)
     right_servo = ServoWrite(pi=pi, gpio=24)
-    obstacle_flag = [False]
+    obstacle_flag = [False] #Initially false, set to True by sonar thread
 
-    mc = MotorControl(pi= pi)
-    #run_path_1()
-    run_path_2(mc, left_servo, right_servo)
-    #sensorThread = threading.Thread(target=Sonar, args=(sensor, samples, obstacle_flag), daemon = True)
+    #creation of movement controller
+    CONTROLLER = movement_controller(left_servo, right_servo)
+
+    sensorThread = threading.Thread(target=Sonar, args=(sensor, samples, obstacle_flag), daemon = True)
     sensorThread.start()
-    #keyboard_control_test()
-    
-    # Start the keyboard listener
-    #listener = keyboard.Listener(on_press=on_press, on_release=on_release)
-    #listener.start()
 
-    #while True:
-        #print(obstacle_flag[0])
-          
-    #    if key_states["w"] and not(obstacle_flag[0]):
-    #        mc.moveForward(left_servo, right_servo, 0.01)
-    #        
-    #    if key_states["a"]:
-    #        mc.turn_left(left_servo, right_servo, 0.01)
-    #
-    #    if key_states["d"]:
-    #        mc.turn_right(left_servo, right_servo, 0.01)
+    #Start the keyboard listener
+    listener = keyboard.Listener(on_press=on_press, on_release=on_release)
+    listener.start()
 
-    #    if key_states["s"]:
-    #        mc.stopRobot(left_servo, right_servo, 0.01)
-    #        
-    #    else: 
-    #        mc.stopRobot(left_servo, right_servo, 0.01)
+    while True:
+        if obstacle_flag[0]: 
+            CONTROLLER.move_backward(1.25) #retreat back after finding a close obstacle. 
+            #here we can call the pick next direction. Once sonar rotations are implemented in lab 3...
 
-        #time.sleep(0.05)  # Small delay to reduce CPU usage
+        if key_states["w"] and not(obstacle_flag[0]):
+            CONTROLLER.move_forward()
+            
+        if key_states["a"]:
+            CONTROLLER.turn_left()
     
-    #while True: 
-    #    if obstacle_flag:
-    #        mc.stopRobot(left_servo, right_servo, 5)
-    #    char = getch()
-    #    if char == "w":
-    #        mc.moveForward(left_servo, right_servo, 0.01)
-    #        char.clear()
-    #    if char == "a": 
-    #        mc.turn_left(left_servo, right_servo, 0.1)
-    #    if char == "d":  
-    #        mc.turn_right(left_servo, right_servo, 0.1)
-    #    if char == "s":
-    #        mc.stopRobot(left_servo, right_servo, 0.2)
-    #    if char == "q":
-    #        break 
-           
-    
+        if key_states["d"]:
+            CONTROLLER.turn_right()
+
+        if key_states["s"]:
+            CONTROLLER.move_backward()
+            
+        else:
+            CONTROLLER.stop_robot()
+
 if __name__ == "__main__":
     main()
