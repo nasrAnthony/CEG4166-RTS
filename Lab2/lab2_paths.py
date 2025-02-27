@@ -252,9 +252,9 @@ class movement_controller:
         self.left_servo.set_position(90)
         time.sleep(timer)
         
-    def stop_robot(left_servo, right_servo, timer): 
-        right_servo.set_position(0)
-        left_servo.set_position(0)
+    def stop_robot(self, timer): 
+        self.right_servo.set_position(0)
+        self.left_servo.set_position(0)
         time.sleep(timer)
         
     def turn_left(self, timer): 
