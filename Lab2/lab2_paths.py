@@ -294,7 +294,8 @@ key_states = {
     "w": False,
     "a": False,
     "d": False,
-    "s": False
+    "s": False, 
+    "q": False
 }
 
 def on_press(key):
@@ -345,7 +346,10 @@ def main():
 
         if key_states["s"]:
             CONTROLLER.move_backward()
-            
+
+        if key_states["q"]:
+            break
+
         else:
             CONTROLLER.stop_robot()
 
