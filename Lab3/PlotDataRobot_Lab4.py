@@ -8,6 +8,9 @@ import pigpio
 import RPi.GPIO as GPIO
 from WheelEncoderGPIO import WheelEncoder
 import matplotlib.pyplot as plt
+import cv2
+from picamera2 import Picamera2
+
 
 #Keyboard control from lab 2 + sonar imports
 from HCSR04 import HCSR04
@@ -22,9 +25,9 @@ class multiplePlots:
         self.xmax = xmax
         self.ymax = 200
 		
-	  #Define sampleTime to calculate the speed and the tf variable, which
+        #Define sampleTime to calculate the speed and the tf variable, which
         #represents 
-	  #the end time of the speed measuring
+        #the end time of the speed measuring
         self.sampleTime = 1
         self.tf = time.time() + self.sampleTime
 
@@ -35,9 +38,9 @@ class multiplePlots:
         # Setup figure and subplots
         self.f0 = figure(num = 0, figsize = (6, 4))
         self.f0.suptitle("Oscillation decay", fontsize=12)
-        self.ax01 = subplot2grid((1, 2), (0, 0))
-        self.ax02 = subplot2grid((1, 2), (0, 1))
-        self.ax03 = subplot2grid((1, 3), (0, 2))
+        self.ax01 = subplot2grid((2, 2), (0, 0))
+        self.ax02 = subplot2grid((2, 2), (0, 1))
+        self.ax03 = subplot2grid((2, 2), (1, 0))
 
         # Data Placeholders
         self.yp1=zeros(0)
@@ -63,7 +66,7 @@ class multiplePlots:
         self.ax02.legend([self.p021,self.p022],
                          [self.p021.get_label(),self.p022.get_label()])
         #sonar data legend
-        self.ax03.legend([self.p031.get_label(())])
+        self.ax03.legend([self.p031.get_label()])
 
         # Data Update
         self.xmin = 0.0
@@ -112,6 +115,7 @@ class multiplePlots:
             self.rightSpeed = (self.rightEncoderCount.getTotalDistance() - self.ini_pos_right)/self.sampleTime
             self.ini_pos_left = self.leftEncoderCount.getTotalDistance()
             self.ini_pos_right = self.rightEncoderCount.getTotalDistance()
+            print(self.leftSpeed, self.rightSpeed)
 
     def teste(self):
         return self.xmax, self.yp1
@@ -127,8 +131,9 @@ class multiplePlots:
         self.yp2=append(self.yp2,self.totRightDist)
         self.yv2=append(self.yv2,self.rightSpeed)
         
-        #add new incoming sonar distance data
-        self.sonar_values=append(self.sonar_values,new_sonar_distance)
+        #add new incoming sonar distance 
+        #print("SONARVALUES", self.sonar_values)
+        self.sonar_values=append(self.sonar_values, new_sonar_distance)
         #time
         self.t=append(self.t,self.x)
 
@@ -151,10 +156,15 @@ class multiplePlots:
             self.p021.axes.set_ylim(self.yv1[-1]-self.ymax+40.0,self.yv1[-1]+40.0)
         if self.yv2[-1] >= self.ymax-40.00:
             self.p021.axes.set_ylim(self.yv2[-1]-self.ymax+40.0,self.yv2[-1]+40.0)
+        
+        if self.sonar_values[-1] >= self.ymax-40.00:
+            self.p031.axes.set_ylim(self.sonar_values[-1]-self.ymax+40.0,self.sonar_values[-1]+40.0)
 		
         if self.x >= self.xmax-1.00:
             self.p011.axes.set_xlim(self.x-self.xmax+1.0,self.x+1.0)
             self.p021.axes.set_xlim(self.x-self.xmax+1.0,self.x+1.0)
+            self.p031.axes.set_xlim(self.x-self.xmax+1.0,self.x+1.0)
+            
 
 class ServoWrite:
     def __init__(self, pi, gpio, min_pw=1280, max_pw=1720, min_speed=-1, max_speed=1, min_degree=-90, max_degree=90):
@@ -226,9 +236,9 @@ class movement_controller:
         self.left_servo.set_position(90)
         time.sleep(timer)
         
-    def stop_robot(left_servo, right_servo, timer): 
-        right_servo.set_position(0)
-        left_servo.set_position(0)
+    def stop_robot(self, timer): 
+        self.right_servo.set_position(0)
+        self.left_servo.set_position(0)
         time.sleep(timer)
         
     def turn_left(self, timer): 
@@ -305,13 +315,13 @@ def on_release(key):
         pass
 
 #Returning values to plot the data
-def loopData(plotData, sonar_val):
-    plotData.updateData(sonar_val)
+def loopData(frame):
+    plotData.updateData(sonar_distance_data[-1])
     return plotData.p011, plotData.p012, plotData.p021, plotData.p022, plotData.p031
     
 
-def keyboard_movement(controller: movement_controller, obstacle_flag): 
-        #Start the keyboard listener
+def keyboard_movement(controller: movement_controller, obstacle_flag, close_feed): 
+    #Start the keyboard listener
     listener = keyboard.Listener(on_press=on_press, on_release=on_release)
     listener.start()
     
@@ -343,13 +353,52 @@ def keyboard_movement(controller: movement_controller, obstacle_flag):
             controller.set_sonar_right()
             
         if key_states["k"]: 
-            controller.set_sonar_cneter()
-
+            controller.set_sonar_center()
+            
+        if key_states["v"]:    
+            close_feed[0] = True
+        
+        if key_states["c"]:    
+            close_feed[0] = False
+            
         if key_states["p"]:
             break
         
         else: 
             controller.stop_robot(0.01)
+
+#creation of two encoders using WheelEncoder class
+#start graphing animation:
+xmax = 5
+
+leftEncoderCount = WheelEncoder(11, 1028, 5.65/2)
+rightEncoderCount = WheelEncoder(13, 1028, 5.65/2)
+plotData = multiplePlots(leftEncoderCount, rightEncoderCount, samples, xmax) 
+sonar_distance_data = [0]
+
+
+def camera():
+    picam2 = Picamera2()
+    picam2.start()
+    close_cam = False
+    
+    if key_states["v"]:    
+        close_cam = True
+
+    if key_states["c"]:
+        close_cam = False
+        
+    while True:
+        frame = picam2.capture_array()  # Capture frame as numpy array
+        
+        if cv2.waitKey(1) & 0xFF == ord('q'):  # Press 'q' to exit
+            break
+            
+        if not close_cam:
+            cv2.imshow("Stingray Live Video Feed", frame)
+            
+    cv2.destroyAllWindows()
+    picam2.close()
 
 def main():
     pi = pigpio.pi()
@@ -358,25 +407,25 @@ def main():
     sonar_servo = ServoWrite(pi=pi, gpio= 25,min_pw = 500, max_pw = 2500) #adjusted PW min max to allow for 90 degree rotations in both directions for the sonar sensor. 
     controller = movement_controller(right_servo, left_servo, sonar_servo)
     obstacle_flag = [False]
-    sonar_distance_data = []
+    close_feed = [False]
     
-    #start graphing animation:
-    xmax = 5
-
-    #creation of two encoders using WheelEncoder class
-    leftEncoderCount = WheelEncoder(11, 1028, 5.65/2)
-    rightEncoderCount = WheelEncoder(13, 1028, 5.65/2)
-    plotData = multiplePlots(leftEncoderCount, rightEncoderCount, samples, xmax) 
-    #Create an animation to plot the data, during 1 minute
-    simulation = animation.FuncAnimation(fig=plotData.f0, func=loopData,
-                    blit=False, frames=200, interval=20, repeat=False)
+    #start keyboard movement thread
+    movementThread = threading.Thread(target=keyboard_movement, args=(controller, obstacle_flag, close_feed), daemon = True)
+    movementThread.start()
+    
     #start sensor thread
     sensorThread = threading.Thread(target=Sonar, args=(sensor, samples, obstacle_flag, sonar_distance_data), daemon = True)
     sensorThread.start()
-
-    #start keyboard movement thread
-    movementThread = threading.Thread(target=keyboard_movement, args=(controller, obstacle_flag), daemon = True)
-    movementThread.start()
+    
+    #start camera thread
+    cameraThread = threading.Thread(target=camera, daemon = True)
+    cameraThread.start()
+    
+    #Create an animation to plot the data, during 1 minute
+    simulation = animation.FuncAnimation(fig=plotData.f0, func=loopData,
+                    blit=False, frames=200, interval=20, repeat=False)
+    #camera thread
+    plt.show()
 
 if __name__ == "__main__":
     main()
