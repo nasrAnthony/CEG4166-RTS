@@ -377,15 +377,16 @@ plotData = multiplePlots(leftEncoderCount, rightEncoderCount, samples, xmax)
 sonar_distance_data = [0]
 
 
-def camera():
+def camera(key_states):
+    key_states_dict = key_states[0]
     picam2 = Picamera2()
     picam2.start()
     close_cam = False
     
-    if key_states["v"]:    
+    if key_states_dict["v"]: 
         close_cam = True
 
-    if key_states["c"]:
+    if key_states_dict["c"]:
         close_cam = False
         
     while True:
@@ -418,13 +419,12 @@ def main():
     sensorThread.start()
     
     #start camera thread
-    cameraThread = threading.Thread(target=camera, daemon = True)
+    cameraThread = threading.Thread(target=camera, args=([key_states]), daemon = True)
     cameraThread.start()
     
     #Create an animation to plot the data, during 1 minute
     simulation = animation.FuncAnimation(fig=plotData.f0, func=loopData,
                     blit=False, frames=200, interval=20, repeat=False)
-    #camera thread
     plt.show()
 
 if __name__ == "__main__":
