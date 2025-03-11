@@ -17,7 +17,7 @@ picam2.start()
 time.sleep(2)
 
 # Load the face detection model
-cascadePath = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+cascadePath = os.path.join(os.getcwd(), 'haarcascade_frontalface_default.xml')
 faceDetector = cv2.CascadeClassifier(cascadePath)
 
 # For each person, enter one numeric face id - start from 1

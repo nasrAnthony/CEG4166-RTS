@@ -8,7 +8,7 @@ import time
 from picamera2 import Picamera2
 
 # Load the face detection model
-cascadePath = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+cascadePath = os.path.join(os.getcwd(), 'haarcascade_frontalface_default.xml')
 faceDetector = cv2.CascadeClassifier(cascadePath)
 
 # Load trained face recognition model
@@ -20,8 +20,7 @@ font = cv2.FONT_HERSHEY_SIMPLEX
 
 # Name data (modify as needed). The names should be in the order of input in
 # faces_input and stored in the Dataset_Faces.
-# E.g.: 1 is Jack, 2 is Jane, and 3 is Jill
-name_data = ['none', 'Jack', 'Jane', 'Jill']
+name_data = ['none', 'Veeren', 'Anthony']
 
 # Initialize Picamera2
 picam2 = Picamera2()
