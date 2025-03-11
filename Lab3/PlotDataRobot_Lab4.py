@@ -354,7 +354,7 @@ def keyboard_movement(controller: movement_controller, obstacle_flag, close_feed
             
         if key_states["k"]: 
             controller.set_sonar_center()
-            
+               
         if key_states["v"]:    
             close_feed[0] = True
         
@@ -377,16 +377,15 @@ plotData = multiplePlots(leftEncoderCount, rightEncoderCount, samples, xmax)
 sonar_distance_data = [0]
 
 
-def camera(key_states):
-    key_states_dict = key_states[0]
+def camera():
     picam2 = Picamera2()
     picam2.start()
     close_cam = False
     
-    if key_states_dict["v"]: 
+    if key_states["v"]:    
         close_cam = True
 
-    if key_states_dict["c"]:
+    if key_states["c"]:
         close_cam = False
         
     while True:
@@ -419,13 +418,14 @@ def main():
     sensorThread.start()
     
     #start camera thread
-    cameraThread = threading.Thread(target=camera, args=([key_states]), daemon = True)
+    cameraThread = threading.Thread(target=camera, daemon = True)
     cameraThread.start()
     
     #Create an animation to plot the data, during 1 minute
     simulation = animation.FuncAnimation(fig=plotData.f0, func=loopData,
                     blit=False, frames=200, interval=20, repeat=False)
+    #camera thread
     plt.show()
 
 if __name__ == "__main__":
-    main()
+    main()	
