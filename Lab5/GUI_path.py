@@ -8,6 +8,7 @@ from final_FaceRecog import run_face_recognition #this might compete with the ob
 from matplotlib.pylab import *
 from mpl_toolkits.axes_grid1 import host_subplot
 import matplotlib.animation as animation
+from PlotDataRobot_Lab4 import multiplePlots, ServoWrite
 
 import pigpio
 import RPi.GPIO as GPIO
@@ -17,70 +18,17 @@ import cv2
 from HCSR04 import HCSR04
 from picamera2 import Picamera2
 
-#ServoWrite class
-class ServoWrite:
-    def __init__(self, pi, gpio, min_pw=1280, max_pw=1720, min_speed=-1, max_speed=1, min_degree=-90, max_degree=90):
-        self.pi = pi
-        self.gpio = gpio
-        self.min_pw = min_pw
-        self.max_pw = max_pw
-        self.min_speed = min_speed
-        self.max_speed = max_speed
-        self.min_degree = min_degree
-        self.max_degree = max_degree
-
-        self.slope = (self.min_pw - ((self.min_pw + self.max_pw) / 2)) / self.max_degree
-        self.offset = (self.min_pw + self.max_pw) / 2
-
-    def set_pw_speed(self, pulse_width):
-        pulse_width = max(min(self.max_pw, pulse_width), self.min_pw)
-        self.pi.set_servo_pulsewidth(user_gpio=self.gpio, pulsewidth=pulse_width)
-
-    def set_pw(self, pulse_width):
-        pulse_width = max(min(self.max_pw, pulse_width), self.min_degree)
-        self.pi.set_servo_pulsewidth(user_gpio=self.gpio, pulsewidth=pulse_width)
-
-    def calc_pw_speed(self, speed):
-        return self.slope * speed + self.offset
-
-    def calc_pw(self, degree):
-        return self.slope * degree + self.offset
-
-    def set_speed(self, speed):
-        speed = max(min(self.max_speed, speed), self.min_speed)
-        calculated_pw = self.calc_pw(speed=speed)
-        self.set_pw(pulse_width=calculated_pw)
-
-    def stop(self):
-        self.set_pw(pulse_width=(self.min_pw + self.max_pw) / 2)
-
-    def max_backward(self):
-        self.set_pw(self.max_pw)
-
-    def max_forward(self):
-        self.set_pw(self.min_pw)
-
-    def max_left(self):
-        self.set_pw(self.max_pw)
-
-    def max_right(self):
-        self.set_pw(self.min_pw)
-
-    def set_position(self, degree):
-        degree = max(min(self.max_degree, degree), self.min_degree) 
-        calculated_pw = self.calc_pw(degree=degree)
-        self.set_pw(pulse_width=calculated_pw)
-
 class SONAR(): 
     def __init__(self): 
         self.samples = 5
         #Creation of sonar sensor
         self.sensor = HCSR04(7, 12)
         self.obstacle_flag = [False]
-        self.sonar_distance_data = []
+        self.sonar_distance_data = [0]
 
     def run_sonar(self): 
         #def Sonar(sensor, samples, obstacle_flag, sonar_distance_data):
+        counter = 0
         while True:
             s = time.time()
             distance = int(self.sensor.measure(self.samples, "cm"))
@@ -88,14 +36,18 @@ class SONAR():
             #print("Distance:", distance, "cm")
             #print("Used time:", (e - s), "seconds")
             #distance = int(distance)
-            if distance < 10:
+            if distance < 15:
                 print("Object Detected at Distance:", distance, "cm")
-                self.obstacle_flag[0] = True
+                if counter == 0:
+                    self.obstacle_flag[0] = True
+                    counter = 10
+                else: 
+                    counter -= 1
             else: 
                 self.obstacle_flag[0] = False
             #print(distance, obstacle_flag)
             self.sonar_distance_data.append(distance)
-            time.sleep(0.01)
+            time.sleep(0.5)
 
 class movement_controller: 
     def __init__(self, left_servo, right_servo, sonar_servo): 
@@ -107,6 +59,9 @@ class movement_controller:
             "s": None, "L": None, "R": None
         }
         self.move = True
+        self.move_map = [] #populate with tuples ex format ('f', '90') #forward 90 cm
+        self.sonar_distance_data = [0]
+                        
 
     #Movement functionality
     def move_forward(self, timer): 
@@ -143,18 +98,48 @@ class movement_controller:
     def set_sonar_left(self): 
         self.sonar_servo.set_position(-90)
     
-    def autonomous_movement(self): 
+    def autonomous_control(self):
         #start sonar thread
-        sensorThread = threading.Thread(target=SONAR.run_sonar, args=(), daemon = True)
+        sensorThread = threading.Thread(target=self.sonar.run_sonar, args=(), daemon = True)
         sensorThread.start()
-        while self.move: 
+        
+        #start object detection thread. 
+        objectDetectionThread = threading.Thread(target=run_detection, args=(), daemon = True)
+        objectDetectionThread.start()
+        self.set_sonar_center()
+        while self.move:
             if not self.sonar.obstacle_flag[0]:  #obstacle not detected. 
                 self.move_forward(0.1)
+                self.move_map.append(("f", 10)) #increments of 10 for now, update with distance traveled from the graphed data. 
+                self.stop_robot(0.1)
+                time.sleep(0.1)
             elif self.sonar.obstacle_flag[0]:  #obstacle detected
                 self.stop_robot(0.1) #halt movement. 
                 #move sonar left, right, center, record data, check which is largest distance, turn in that direction and go forward again, reset the obstacle_flag. 
-
-            
+                self.set_sonar_left()
+                time.sleep(1) #inject delay
+                #grab data.
+                self.sonar_turn_data['L'] = self.sonar.sonar_distance_data[-1]
+                #check right.
+                self.set_sonar_right()
+                time.sleep(1)
+                self.sonar_turn_data['R'] = self.sonar.sonar_distance_data[-1]
+                print(self.sonar_turn_data)
+                #turn robot in direction with highest highest distance. 
+                if(self.sonar_turn_data['R'] >= self.sonar_turn_data['L']): 
+                    self.turn_right(0.5)
+                    print("decided to move right")
+                    self.move_map.append(("R", 0))
+                elif(self.sonar_turn_data['L'] > self.sonar_turn_data['R']):
+                    self.turn_left(0.5)
+                    print("decided to move left")
+                    self.move_map.append(("L", 0))
+                #center sonar again. 
+                self.set_sonar_center()
+                #after turn, reset move obstacle flag to allow forward movement. 
+                self.sonar.obstacle_flag[0] = False
+            self.sonar_distance_data = self.sonar.sonar_distance_data #update sonar data for graphing. 
+        return sensorThread, objectDetectionThread
 
 #GUI CLASS
 class GUI_MAP(): 
@@ -187,7 +172,18 @@ class GUI_MAP():
         self.rows, self.cols = 14, 8
         self.width = self.cols * self.square_size
         self.height = self.rows * self.square_size
-    def build_GUI(self, current_robot_movement= None):
+
+        self.leftEncoderCount = WheelEncoder(11, 1028, 5.65/2)
+        self.rightEncoderCount = WheelEncoder(13, 1028, 5.65/2)
+        self.plotData = multiplePlots(self.leftEncoderCount, self.rightEncoderCount, 5, 5)
+
+        self.pi = pigpio.pi()
+        self.left_servo = ServoWrite(pi=self.pi, gpio=23)
+        self.right_servo = ServoWrite(pi=self.pi, gpio=24)
+        self.sonar_servo = ServoWrite(pi=self.pi, gpio= 25,min_pw = 500, max_pw = 2500)
+        self.MC = movement_controller(self.left_servo, self.right_servo, self.sonar_servo)
+
+    def build_GUI(self):
         #Create the main window
         root = tk.Tk()
         root.title("Map")
@@ -211,10 +207,24 @@ class GUI_MAP():
 
         root.mainloop()
 
-    def start_movement_control(self): 
-        pass
+    def loopData(self, frame):
+        self.plotData.updateData(self.MC.sonar_distance_data[-1])
+        return self.plotData.p011, self.plotData.p012, self.plotData.p021, self.plotData.p022,self.plotData.p031
+    
+    def start_lab5(self):
+        GUI_thread = threading.Thread(target= self.build_GUI, args=(), daemon= True)
+        GUI_thread.start()
+        print("GUI thread launched")
+        movement_thread = threading.Thread(target=self.MC.autonomous_control, args=(), daemon = True)
+        movement_thread.start()
+        print("Movement thread launched")
+        #Create an animation to plot the data, during 1 minute
+        simulation = animation.FuncAnimation(fig=self.plotData.f0, func=self.loopData,
+                    blit=False, frames=200, interval=20, repeat=False)
+        print("Graphing thread launched")
+        plt.show()
             
 
 if __name__ == "__main__":
     gui = GUI_MAP()
-    gui.build_GUI()
+    gui.start_lab5()

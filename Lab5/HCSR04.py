@@ -1,9 +1,7 @@
 import RPi.GPIO as gpio
 import time
 
-
 class HCSR04:
-    # Encapsulates the attributes and methods to use the HC-SR04 ultra-sound distance sensor
     trig = 0
     echo = 0
     const_cm = 17014.50
@@ -24,26 +22,32 @@ class HCSR04:
 
     def delete(self):
         gpio.cleanup()
-        print("all clean")
+        print("INFO: GPIO cleanup complete")
+        time.sleep(0.1)
 
-    # Measures the distance and return the distance in the desired unit
     def measure(self, samples, unit):
         count = 0
-        distance = 0.0
-        pulse_start = 0
-        pulse_end = 0
         acc = 0
+        valid_samples = 0  # Track how many valid readings we get
 
         while count < samples:
             gpio.output(self.trig, True)
             time.sleep(0.00001)
             gpio.output(self.trig, False)
 
+            timeout = time.time() + 0.02
             while gpio.input(self.echo) == 0:
                 pulse_start = time.time()
+                if pulse_start > timeout:
+                    print("WARNING: No echo detected")
+                    return -1  # Avoid infinite loop
 
+            timeout = time.time() + 0.02
             while gpio.input(self.echo) == 1:
                 pulse_end = time.time()
+                if pulse_end > timeout:
+                    print("WARNING: Echo signal stuck")
+                    return -1
 
             pulse_duration = pulse_end - pulse_start
 
@@ -54,8 +58,17 @@ class HCSR04:
             elif unit == "ft":
                 distance = pulse_duration * self.const_ft
 
+            if distance < 2 or distance > 400:
+                print("WARNING: Ignoring invalid reading:", distance)
+                continue  # Ignore this measurement
+
             acc += distance
+            valid_samples += 1
             count += 1
 
-        acc = round(acc / samples, 2)
+        if valid_samples == 0:
+            print("ERROR: No valid sonar readings detected")
+            return -1  # Return error if all samples were bad
+
+        acc = round(acc / valid_samples, 2)
         return acc
