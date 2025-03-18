@@ -110,7 +110,7 @@ class movement_controller:
         while self.move:
             if not self.sonar.obstacle_flag[0]:  #obstacle not detected. 
                 self.move_forward(0.1)
-                self.move_map.append(("f", 10)) #increments of 10 for now, update with distance traveled from the graphed data. 
+                self.move_map.append("F") #increments of 10 for now, update with distance traveled from the graphed data. 
                 self.stop_robot(0.1)
                 time.sleep(0.1)
             elif self.sonar.obstacle_flag[0]:  #obstacle detected
@@ -129,11 +129,11 @@ class movement_controller:
                 if(self.sonar_turn_data['R'] >= self.sonar_turn_data['L']): 
                     self.turn_right(0.5)
                     print("decided to move right")
-                    self.move_map.append(("R", 0))
+                    self.move_map.append("R")
                 elif(self.sonar_turn_data['L'] > self.sonar_turn_data['R']):
                     self.turn_left(0.5)
                     print("decided to move left")
-                    self.move_map.append(("L", 0))
+                    self.move_map.append("L")
                 #center sonar again. 
                 self.set_sonar_center()
                 #after turn, reset move obstacle flag to allow forward movement. 
