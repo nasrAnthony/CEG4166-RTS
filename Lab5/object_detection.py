@@ -83,53 +83,59 @@ def load_model(args):
     input_std = 127.5
 
 def detection(any, any2, video_camera):
-    while True:
-        # Grab frame from PiCamera
-        original_frame = video_camera.read()
-        if original_frame is None:
-            print("Warning: Failed to grab frame")
-            continue
+    log_file_path = "/home/ceg4166/Desktop/CEG4166/Lab5/log_file_run.txt"
+    with open(log_file_path, 'a') as log_file:
+        while True:
+            # Grab frame from PiCamera
+            original_frame = video_camera.read()
+            if original_frame is None:
+                print("Warning: Failed to grab frame")
+                continue
 
-        # Convert frame to OpenCV format (BGR)
-        frame = cv2.cvtColor(original_frame, cv2.COLOR_RGB2BGR)
-        frame_resized = cv2.resize(frame, (width, height))
-        input_data = np.expand_dims(frame_resized, axis=0)
+            # Convert frame to OpenCV format (BGR)
+            frame = cv2.cvtColor(original_frame, cv2.COLOR_RGB2BGR)
+            frame_resized = cv2.resize(frame, (width, height))
+            input_data = np.expand_dims(frame_resized, axis=0)
 
-        # Normalize for floating point models
-        if floating_model:
-            input_data = (np.float32(input_data) - input_mean) / input_std
+            # Normalize for floating point models
+            if floating_model:
+                input_data = (np.float32(input_data) - input_mean) / input_std
 
-        model_interpreter.set_tensor(input[0]['index'], input_data)
-        model_interpreter.invoke()
+            model_interpreter.set_tensor(input[0]['index'], input_data)
+            model_interpreter.invoke()
 
-        # Get detection results
-        box = model_interpreter.get_tensor(output[0]['index'])[0]  # Bounding box coordinates
-        classes = model_interpreter.get_tensor(output[1]['index'])[0]  # Class index of objects
-        conf_value = model_interpreter.get_tensor(output[2]['index'])[0]  # Confidence of detected objects
+            # Get detection results
+            box = model_interpreter.get_tensor(output[0]['index'])[0]  # Bounding box coordinates
+            classes = model_interpreter.get_tensor(output[1]['index'])[0]  # Class index of objects
+            conf_value = model_interpreter.get_tensor(output[2]['index'])[0]  # Confidence of detected objects
 
-        for i in range(len(conf_value)):
-            if minimum_confidence < conf_value[i] <= 1.0:
-                ymin = int(max(1, (box[i][0] * imH)))
-                xmin = int(max(1, (box[i][1] * imW)))
-                ymax = int(min(imH, (box[i][2] * imH)))
-                xmax = int(min(imW, (box[i][3] * imW)))
+            for i in range(len(conf_value)):
+                if minimum_confidence < conf_value[i] <= 1.0:
+                    ymin = int(max(1, (box[i][0] * imH)))
+                    xmin = int(max(1, (box[i][1] * imW)))
+                    ymax = int(min(imH, (box[i][2] * imH)))
+                    xmax = int(min(imW, (box[i][3] * imW)))
 
-                cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), (10, 255, 0), 2)
-                object_name = labels[int(classes[i])]
-                label = f'{object_name}: {int(conf_value[i] * 100)}%'
-                labelSize, baseLine = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
-                label_ymin = max(ymin, labelSize[1] + 10)
+                    cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), (10, 255, 0), 2)
+                    object_name = labels[int(classes[i])]
+                    label = f'{object_name}: {int(conf_value[i] * 100)}%'
 
-                cv2.rectangle(frame, (xmin, label_ymin - labelSize[1] - 10),
-                              (xmin + labelSize[0], label_ymin + baseLine - 10), (255, 255, 255), cv2.FILLED)
-                cv2.putText(frame, label, (xmin, label_ymin - 7),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2)
+                    timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
+                    log_file.write(f"{object_name} detected at {timestamp}\n")
+                    
+                    labelSize, baseLine = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
+                    label_ymin = max(ymin, labelSize[1] + 10)
 
-        cv2.imshow('Object Detection in Stingray', frame)
+                    cv2.rectangle(frame, (xmin, label_ymin - labelSize[1] - 10),
+                                (xmin + labelSize[0], label_ymin + baseLine - 10), (255, 255, 255), cv2.FILLED)
+                    cv2.putText(frame, label, (xmin, label_ymin - 7),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2)
 
-        if cv2.waitKey(1) == ord('q'):
-            print("\nExiting the frame")
-            break
+            cv2.imshow('Object Detection in Stingray', frame)
+
+            if cv2.waitKey(1) == ord('q'):
+                print("\nExiting the frame")
+                break
 
     cv2.destroyAllWindows()
     video_camera.stop()
