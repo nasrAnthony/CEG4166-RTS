@@ -36,7 +36,7 @@ class Video_PiCamera:
 def parse_arguments():
     """ Parse command-line arguments if running standalone. """
     parser = argparse.ArgumentParser()
-    parser.add_argument('--modeldir', required=True)
+    parser.add_argument('--modeldir', default = "/home/ceg4166/Desktop/CEG4166/Lab3/ssd_model")
     parser.add_argument('--graph', default='detect.tflite')
     parser.add_argument('--labels', default='labelmap.txt')
     parser.add_argument('--threshold', type=float, default=0.5)

@@ -35,20 +35,29 @@ class HCSR04:
             time.sleep(0.00001)
             gpio.output(self.trig, False)
 
-            timeout = time.time() + 0.02
+            pulse_start = None
+            pulse_end = None
+
+            timeout = time.time() + 0.1
             while gpio.input(self.echo) == 0:
                 pulse_start = time.time()
                 if pulse_start > timeout:
                     print("WARNING: No echo detected")
                     return -1  # Avoid infinite loop
 
-            timeout = time.time() + 0.02
+            timeout = time.time() + 0.1
             while gpio.input(self.echo) == 1:
                 pulse_end = time.time()
                 if pulse_end > timeout:
                     print("WARNING: Echo signal stuck")
                     return -1
-
+                
+            # Ensure valid values before using
+            if pulse_start is None or pulse_end is None:
+                print("WARNING: Invalid pulse data (timeout)")
+                count += 1  # Count even failed attempts so we eventually exit
+                continue
+            
             pulse_duration = pulse_end - pulse_start
 
             if unit == "cm":
@@ -58,7 +67,7 @@ class HCSR04:
             elif unit == "ft":
                 distance = pulse_duration * self.const_ft
 
-            if distance < 2 or distance > 400:
+            if distance < 0:
                 print("WARNING: Ignoring invalid reading:", distance)
                 continue  # Ignore this measurement
 

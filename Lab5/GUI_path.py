@@ -20,7 +20,7 @@ from picamera2 import Picamera2
 
 class SONAR(): 
     def __init__(self): 
-        self.samples = 5
+        self.samples = 3
         #Creation of sonar sensor
         self.sensor = HCSR04(7, 12)
         self.obstacle_flag = [False]
@@ -47,7 +47,7 @@ class SONAR():
                 self.obstacle_flag[0] = False
             #print(distance, obstacle_flag)
             self.sonar_distance_data.append(distance)
-            time.sleep(0.5)
+            time.sleep(0.1)
 
 class movement_controller: 
     def __init__(self, left_servo, right_servo, sonar_servo): 
@@ -65,8 +65,8 @@ class movement_controller:
 
     #Movement functionality
     def move_forward(self, timer): 
-        self.right_servo.set_position(90)
-        self.left_servo.set_position(-90)
+        self.right_servo.set_position(30)
+        self.left_servo.set_position(-28)
         time.sleep(timer)
             
     def move_backward(self, timer): 
@@ -111,7 +111,7 @@ class movement_controller:
             if not self.sonar.obstacle_flag[0]:  #obstacle not detected. 
                 self.move_forward(0.1)
                 self.move_map.append("F") #increments of 10 for now, update with distance traveled from the graphed data. 
-                self.stop_robot(0.1)
+                #self.stop_robot(0.1)
                 time.sleep(0.1)
             elif self.sonar.obstacle_flag[0]:  #obstacle detected
                 self.stop_robot(0.1) #halt movement. 
@@ -127,11 +127,11 @@ class movement_controller:
                 print(self.sonar_turn_data)
                 #turn robot in direction with highest highest distance. 
                 if(self.sonar_turn_data['R'] >= self.sonar_turn_data['L']): 
-                    self.turn_right(0.5)
+                    self.turn_right(0.55)
                     print("decided to move right")
                     self.move_map.append("R")
                 elif(self.sonar_turn_data['L'] > self.sonar_turn_data['R']):
-                    self.turn_left(0.5)
+                    self.turn_left(0.55)
                     print("decided to move left")
                     self.move_map.append("L")
                 #center sonar again. 
@@ -292,7 +292,7 @@ class GUI_MAP():
         self.arrow = self.canvas.create_polygon(self.get_arrow_coords(), fill="black")
 
         #check move list next move...
-        self.animate_next_move()
+        self.root.after(100, self.on_key_event)  # Check every 100 milliseconds
 
         self.root.mainloop()
     
@@ -323,9 +323,9 @@ class GUI_MAP():
         elif self.direction == 'left':
             return [x - size, y, x + size, y - size, x + size, y + size]
 
-    def on_key_event(self): 
+    def on_key_event(self):
         if (len(self.MC.move_map) != 0): #meaning a move was done by the robot. 
-            move = self.MC.move_map[-1] #get the latest move. 
+            move = self.MC.move_map.pop() #get the latest move.
             if move == "L":
                 self.direction = self.directions[(self.directions.index(self.direction) - 1) % 4]
             elif move == "R":
@@ -334,6 +334,8 @@ class GUI_MAP():
                 self.move_forward()
             
             self.canvas.coords(self.arrow, self.get_arrow_coords())
+
+        self.root.after(100, self.on_key_event)
     
     def move_forward(self):
         prev_x, prev_y = self.player_x, self.player_y
@@ -355,6 +357,11 @@ class GUI_MAP():
                                 fill='black', width=2)
         
 
+
+    def loopData(self, frame):
+        self.plotData.updateData(self.MC.sonar_distance_data[-1])
+        return self.plotData.p011, self.plotData.p012, self.plotData.p021, self.plotData.p022,self.plotData.p031
+    
     def start_lab5(self):
         GUI_thread = threading.Thread(target= self.build_GUI, args=(), daemon= True)
         GUI_thread.start()
