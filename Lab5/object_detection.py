@@ -82,7 +82,7 @@ def load_model(args):
     input_mean = 127.5
     input_std = 127.5
 
-def detection(any, any2, video_camera):
+def detection(any, any2, video_camera, controller):
     log_file_path = "/home/ceg4166/Desktop/CEG4166/Lab5/log_file_run.txt"
     with open(log_file_path, 'a') as log_file:
         while True:
@@ -121,7 +121,7 @@ def detection(any, any2, video_camera):
                     label = f'{object_name}: {int(conf_value[i] * 100)}%'
 
                     timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
-                    log_file.write(f"{object_name} detected at {timestamp}\n")
+                    log_file.write(f"{object_name} detected at {timestamp} || Heading: {controller.move_map[-1]}, Coords: ({controller.x}, {controller.y})\n")
                     
                     labelSize, baseLine = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
                     label_ymin = max(ymin, labelSize[1] + 10)
@@ -140,7 +140,7 @@ def detection(any, any2, video_camera):
     cv2.destroyAllWindows()
     video_camera.stop()
 
-def run_detection():
+def run_detection(controller=None):
     """ Starts object detection in a new thread. """
     args = parse_arguments()
     load_model(args)
@@ -148,7 +148,7 @@ def run_detection():
     time.sleep(1)
 
     # Start detection in a separate thread
-    detection_thread = threading.Thread(target=detection, args=('any1', 'any2', picam,), daemon=True)
+    detection_thread = threading.Thread(target=detection, args=('any1', 'any2', picam, controller), daemon=True)
     detection_thread.start()
 
     return picam, detection_thread

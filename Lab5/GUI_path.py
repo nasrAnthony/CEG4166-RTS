@@ -61,6 +61,9 @@ class movement_controller:
         self.move = True
         self.move_map = [] #populate with tuples ex format ('f', '90') #forward 90 cm
         self.sonar_distance_data = [0]
+        self.inc_x = False
+        self.x = 0
+        self.y = 0
                         
 
     #Movement functionality
@@ -104,7 +107,7 @@ class movement_controller:
         sensorThread.start()
         
         #start object detection thread. 
-        objectDetectionThread = threading.Thread(target=run_detection, args=(), daemon = True)
+        objectDetectionThread = threading.Thread(target=run_detection, args=(self), daemon = True)
         objectDetectionThread.start()
         self.set_sonar_center()
         while self.move:
@@ -112,6 +115,10 @@ class movement_controller:
                 self.move_forward(0.1)
                 self.move_map.append("F") #increments of 10 for now, update with distance traveled from the graphed data. 
                 #self.stop_robot(0.1)
+                if self.inc_x: 
+                    self.x+=1
+                else: 
+                    self.y+=1
                 time.sleep(0.1)
             elif self.sonar.obstacle_flag[0]:  #obstacle detected
                 self.stop_robot(0.1) #halt movement. 
@@ -130,100 +137,18 @@ class movement_controller:
                     self.turn_right(0.55)
                     print("decided to move right")
                     self.move_map.append("R")
+                    self.inx_x = True
                 elif(self.sonar_turn_data['L'] > self.sonar_turn_data['R']):
                     self.turn_left(0.55)
                     print("decided to move left")
                     self.move_map.append("L")
+                    self.inc_x = False
                 #center sonar again. 
                 self.set_sonar_center()
                 #after turn, reset move obstacle flag to allow forward movement. 
                 self.sonar.obstacle_flag[0] = False
             self.sonar_distance_data = self.sonar.sonar_distance_data #update sonar data for graphing. 
         return sensorThread, objectDetectionThread
-
-#GUI CLASS
-#class GUI_MAP(): 
-#    def __init__(self): 
-#        self.matrix=[
-#                    [1, 1, 1, 1, 1, 1, 1, 1],
-#                    [1, 0, 0, 0, 0, 0, 3, 1],
-#                    [1, 0, 1, 1, 1, 0, 0, 1],
-#                    [1, 0, 0, 0, 1, 0, 0, 1],
-#                    [1, 1, 1, 0, 1, 0, 0, 1],
-#                    [1, 1, 1, 0, 1, 0, 0, 1],
-#                    [1, 1, 1, 0, 1, 0, 0, 1],
-#                    [1, 1, 1, 0, 0, 0, 0, 1],
-#                    [1, 0, 0, 0, 1, 1, 0, 1],
-#                    [1, 0, 1, 0, 0, 0, 0, 1],
-#                    [1, 0, 1, 1, 0, 0, 0, 1],
-#                    [1, 0, 0, 0, 0, 1, 0, 1],
-#                    [1, 2, 0, 0, 0, 0, 0, 1],
-#                    [1, 1, 1, 1, 1, 1, 1, 1]
-#                ]
-#        
-#        self.color_map = {
-#            1: "black",  #obstacles
-#            0: "white",  #path
-#            2: "red",    #S
-#            3: "green"   #F
-#        }
-#
-#        self.square_size = 50
-#        self.rows, self.cols = 14, 8
-#        self.width = self.cols * self.square_size
-#        self.height = self.rows * self.square_size
-#
-#        self.leftEncoderCount = WheelEncoder(11, 1028, 5.65/2)
-#        self.rightEncoderCount = WheelEncoder(13, 1028, 5.65/2)
-#        self.plotData = multiplePlots(self.leftEncoderCount, self.rightEncoderCount, 5, 5)
-#
-#        self.pi = pigpio.pi()
-#        self.left_servo = ServoWrite(pi=self.pi, gpio=23)
-#        self.right_servo = ServoWrite(pi=self.pi, gpio=24)
-#        self.sonar_servo = ServoWrite(pi=self.pi, gpio= 25,min_pw = 500, max_pw = 2500)
-#        self.MC = movement_controller(self.left_servo, self.right_servo, self.sonar_servo)
-#
-#    def build_GUI(self):
-#        #Create the main window
-#        root = tk.Tk()
-#        root.title("Map")
-#
-#        #Create a Canvas to draw the squares
-#        canvas = tk.Canvas(root, width=self.width, height=self.height)
-#        canvas.pack()
-#
-#        # Draw the squares
-#        for row in range(self.rows):
-#            for col in range(self.cols):
-#                x1 = col * self.square_size
-#                y1 = row * self.square_size
-#                x2 = x1 + self.square_size
-#                y2 = y1 + self.square_size
-#
-#                #Get the fill color from the matrix
-#                fill_color = self.color_map.get(self.matrix[row][col], "white")
-#
-#                canvas.create_rectangle(x1, y1, x2, y2, fill=fill_color, outline="black")
-#
-#        root.mainloop()
-#
-#    def loopData(self, frame):
-#        self.plotData.updateData(self.MC.sonar_distance_data[-1])
-#        return self.plotData.p011, self.plotData.p012, self.plotData.p021, self.plotData.p022,self.plotData.p031
-#    
-#    def start_lab5(self):
-#        GUI_thread = threading.Thread(target= self.build_GUI, args=(), daemon= True)
-#        GUI_thread.start()
-#        print("GUI thread launched")
-#        movement_thread = threading.Thread(target=self.MC.autonomous_control, args=(), daemon = True)
-#        movement_thread.start()
-#        print("Movement thread launched")
-#        #Create an animation to plot the data, during 1 minute
-#        simulation = animation.FuncAnimation(fig=self.plotData.f0, func=self.loopData,
-#                    blit=False, frames=200, interval=20, repeat=False)
-#        print("Graphing thread launched")
-#        plt.show()
-            
 
 class GUI_MAP(): 
     def __init__(self): 
